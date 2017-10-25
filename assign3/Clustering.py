@@ -5,11 +5,9 @@
 
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
-import numpy as np
 import math
 from sklearn.cluster import KMeans
 from sklearn.cluster import SpectralClustering
-from sklearn.preprocessing import StandardScaler
 from sklearn.mixture import GMM
 from sklearn.decomposition import PCA, KernelPCA
 import random
@@ -33,15 +31,22 @@ def makeshell(r,n, d):
     
     return (xs, ys, zs)
 
-def getslice(xs, ys, zs, d):
+def getslice(xs, ys, zs, d, n1, n2, n3):
     xp = []
     yp = []
+    m1, m2, m3 = 0,0,0
     for i in range(len(xs)):
         if(abs(zs[i]) <= d):
             xp.append(xs[i])
             yp.append(ys[i])
+            if(i < n1):
+                m1 += 1
+            elif(i < n1 + n2):
+                m2 += 1
+            else:
+                m3 += 1
     
-    return xp, yp
+    return xp, yp, m1, m2, m3
     
 def plot3D(xs, ys, zs, labs, title):
     
@@ -50,7 +55,6 @@ def plot3D(xs, ys, zs, labs, title):
     clsz = [[],[],[]]
     
     for i in range(len(xs)):
-#    ax3.scatter(xs[i], ys[i], zs[i], c=col, marker='o')
             clsx[labs[i]].append(xs[i])
             clsy[labs[i]].append(ys[i])
             clsz[labs[i]].append(zs[i])
@@ -68,6 +72,22 @@ def plot3D(xs, ys, zs, labs, title):
     
     fig3.savefig(title)
 
+def plot2D(ds, n1, n2, n3, title):
+    
+    fig, ax3 = plt.subplots()
+    
+    ax3.set_title(title)
+    ax3.set_xlabel('X')
+    ax3.set_ylabel('Y')
+    
+    s1 = ds[:n1]
+    s2 = ds[n1:n1+n2]
+    s3 = ds[n1+n2:]
+    
+    ax3.scatter([item[0] for item in s3], [item[1] for item in s3], c='r', marker='o')
+    ax3.scatter([item[0] for item in s2], [item[1] for item in s2], c='g', marker='o')
+    ax3.scatter([item[0] for item in s1], [item[1] for item in s1], c='b', marker='o')
+    
 def doKmeans(xs, ys, zs = [0], plot = 1, title= "K-means Clustering"):
     if(zs == [0]):
         zs = [0 for i in range(len(xs))]
@@ -85,11 +105,7 @@ def doSpectral(xs, ys, zs = [0], plot = 1, title= "Spectral Clustering"):
     
     dataset = zip(xs,ys,zs)
     
-#    X = StandardScaler().fit_transform(dataset)
-    
-    specclus = SpectralClustering(n_clusters=3, gamma=1.0, n_jobs=-1).fit(dataset)
-    
-#    specclus = SpectralClustering(n_clusters=3, eigen_solver=None, random_state=None, n_init=10, gamma=10.0, affinity='rbf', n_neighbors=10, eigen_tol=0.0,  degree=3, coef0=1, kernel_params=None, n_jobs=4).fit(dataset)
+    specclus = SpectralClustering(n_clusters=3, gamma=1.0, n_jobs=1).fit(dataset)
     
     if(plot == 1):
         plot3D(xs, ys, zs, specclus.labels_, title)
@@ -113,10 +129,10 @@ def docluster(xs, ys, zs, xc, yc, zc, tsuffix = ""):
     kmlab = doKmeans(xc, yc, zc, plot=0)
     plot3D(xs, ys, zs, kmlab, "K-means " + tsuffix)
     
-    sclab = doKmeans(xc, yc, zc, plot=0)
-    plot3D(xs, ys, zs, sclab, "Spectal clustering " + tsuffix)
+    sclab = doSpectral(xc, yc, zc, plot=0)
+    plot3D(xs, ys, zs, sclab, "Spectral clustering " + tsuffix)
     
-    gmmlab = doKmeans(xc, yc, zc, plot=0)
+    gmmlab = doGMM(xc, yc, zc, plot=0)
     plot3D(xs, ys, zs, gmmlab, "GMM " + tsuffix)
 
 def doPCA(xs, ys, zs, n1, n2, n3):
@@ -126,10 +142,14 @@ def doPCA(xs, ys, zs, n1, n2, n3):
     res = PCA(n_components=2).fit_transform(dataset)
     plot3D([item[0] for item in res], [item[1] for item in res], [0 for item in res], labels, 'PCA Datapoints 2D')
     
+    plot2D(res, n1, n2, n3, "Datapoints after PCA - 2D")
+    
     docluster(xs, ys, zs, [item[0] for item in res], [item[1] for item in res], [0 for item in res], "after PCA to 2D")
     
     res1 = PCA(n_components=1).fit_transform(res)
-    plot3D([item[0] for item in res], [0 for item in res], [0 for item in res], labels, 'PCA Datapoints 1D')
+    plot3D([item[0] for item in res1], [0 for item in res1], [0 for item in res1], labels, 'PCA Datapoints 1D')
+    
+    plot2D(zip([item[0] for item in res1],[0 for item in res1]), n1, n2, n3, "Datapoints after PCA - 1D")
     
     docluster(xs, ys, zs, [item[0] for item in res1], [0 for item in res1], [0 for item in res1], "after PCA to 1D")
     
@@ -142,12 +162,15 @@ def doKPCA(xs, ys, zs, n1, n2, n3):
     labels = [0 for i in range(n1)] + [1 for i in range(n2)] + [2 for i in range(n3)]
     plot3D([item[0] for item in res], [item[1] for item in res], [0 for item in res], labels, 'Kernel PCA Datapoints 2D')
     
+    plot2D(res, n1, n2, n3, "Datapoints after KPCA - 2D")
+    
     docluster(xs, ys, zs, [item[0] for item in res], [item[1] for item in res], [0 for item in res], "after Kernel-PCA to 2D")
     
     kpca1 = KernelPCA(n_components = 1, kernel = 'poly', gamma = 1.0, degree=2, coef0 = 1, n_jobs=-1)
     res1 = kpca1.fit_transform(dataset)
     
-    plot3D([item[0] for item in res1], [0 for item in res], [0 for item in res], labels, 'Kernel PCA Datapoints 1D')
+    plot3D([item[0] for item in res1], [0 for item in res1], [0 for item in res1], labels, 'Kernel PCA Datapoints 1D')
+    plot2D(zip([item[0] for item in res1],[0 for item in res1]), n1, n2, n3, "Datapoints after KPCA - 1D")
     
     docluster(xs, ys, zs, [item[0] for item in res1], [0 for item in res1], [0 for item in res1], "after Kernel-PCA to 1D")
     
@@ -166,8 +189,8 @@ def main():
     
     fig1 = plt.figure()
     ax3 = fig1.add_subplot(111, projection='3d')
-    ax3.scatter(xs1, ys1, zs1, c='b', marker='^')
-    ax3.scatter(xs2, ys2, zs2, c='g', marker='+')
+    ax3.scatter(xs1, ys1, zs1, c='b', marker='o')
+    ax3.scatter(xs2, ys2, zs2, c='g', marker='o')
     ax3.scatter(xs3, ys3, zs3, c='r', marker='o')
     
     ax3.set_xlabel('X')
@@ -175,15 +198,17 @@ def main():
     ax3.set_zlabel('Z')
     ax3.set_title("Datapoints")
 
-#    xslice, yslice = getslice(combinedx, combinedy, combinedz, baser / 2) 
-#    doSpectral(xslice, yslice, [0 for i in range(len(xslice))])
+    xslice, yslice, m1, m2, m3 = getslice(combinedx, combinedy, combinedz, baser, n1, n2, n3) 
+    
+    plot2D(zip(xslice, yslice), m1, m2, m3, "Sliced view")
+#    doSpectral(xslice, yslice, [0 for i in range(len(xslice))], title="Sliced view")
 #    
 #    doKmeans(combinedx, combinedy, combinedz)
 #    doSpectral(combinedx, combinedy, combinedz)
 #    doGMM(combinedx, combinedy, combinedz)   
-    docluster(combinedx, combinedy, combinedz, combinedx, combinedy, combinedz)
-    doPCA(combinedx, combinedy, combinedz, n1, n2, n3)
-    doKPCA(combinedx, combinedy, combinedz, n1, n2, n3)
+#    docluster(combinedx, combinedy, combinedz, combinedx, combinedy, combinedz)
+#    doPCA(combinedx, combinedy, combinedz, n1, n2, n3)
+#    doKPCA(combinedx, combinedy, combinedz, n1, n2, n3)
     
     plt.show()
     
